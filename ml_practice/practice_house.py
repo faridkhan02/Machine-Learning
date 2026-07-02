@@ -55,3 +55,4 @@ with open("house_price_model.pkl", "wb") as file:
 
 print("✅ Model saved successfully!")
 print("Location:", os.path.abspath("house_price_model.pkl"))
+df.to_csv("house.csv", index=False)
