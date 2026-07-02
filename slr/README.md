@@ -106,6 +106,6 @@ streamlit run app.py
 
 ## 👨‍💻 Author
 
-**Your Name**
+**MD FARID KHAN**
 
 Aspiring Data Scientist
