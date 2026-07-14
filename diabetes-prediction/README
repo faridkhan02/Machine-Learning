@@ -1,0 +1,173 @@
+# Diabetes Prediction — Logistic Regression (Pima Indians Dataset)
+
+An end-to-end machine learning pipeline that predicts whether a patient has diabetes based on diagnostic health measurements, using Logistic Regression with hyperparameter tuning.
+
+## Project Structure
+
+```
+diabetes-prediction/
+├── diabetes_prediction.py       # Full pipeline script
+├── run_metrics.json             # Latest run's metrics (auto-generated)
+├── model/
+│   ├── diabetes_logreg_model.pkl
+│   └── diabetes_scaler.pkl
+└── figures/
+    ├── eda_class_distribution.png
+    ├── eda_correlation_heatmap.png
+    ├── eda_feature_distributions.png
+    ├── eval_confusion_matrix.png
+    ├── eval_roc_curve.png
+    ├── eval_precision_recall_curve.png
+    └── feature_importance.png
+```
+
+## Dataset
+
+The [Pima Indians Diabetes Dataset](https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv), containing 768 patient records across 8 diagnostic features (Pregnancies, Glucose, Blood Pressure, Skin Thickness, Insulin, BMI, Diabetes Pedigree Function, Age) and a binary Outcome label (0 = no diabetes, 1 = diabetes).
+
+Several columns (`Glucose`, `BloodPressure`, `SkinThickness`, `Insulin`, `BMI`) contain biologically impossible zero values, which are treated as hidden missing data and imputed using the class-wise median.
+
+## Pipeline
+
+1. **Load data** from the source CSV
+2. **EDA** — class balance, correlations, feature distributions
+3. **Clean & preprocess** — impute hidden missing values (zeros)
+4. **Split & scale** — stratified 80/20 train/test split, `StandardScaler`
+5. **Train** — Logistic Regression tuned via `GridSearchCV` (5-fold stratified CV, scored on ROC-AUC)
+6. **Evaluate** — accuracy, confusion matrix, classification report, ROC-AUC
+7. **Feature importance** — model coefficients
+8. **Save artifacts** — model + scaler to `model/`
+9. **Sample prediction** — demonstrates inference on a new patient
+
+## Results
+
+**Best hyperparameters:** `C=0.1`, `penalty='l2'`, `solver='lbfgs'`
+**Best CV ROC-AUC:** 0.873
+
+| Metric | Score |
+|---|---|
+| Test Accuracy | **70.78%** |
+| Test ROC-AUC | **0.827** |
+
+**Classification Report**
+
+```
+              precision    recall  f1-score   support
+
+           0       0.77      0.79      0.78       100
+           1       0.59      0.56      0.57        54
+
+    accuracy                           0.71       154
+   macro avg       0.68      0.67      0.67       154
+weighted avg       0.70      0.71      0.71       154
+```
+
+Class `0` = No Diabetes, Class `1` = Diabetes. The model is noticeably weaker on the minority (diabetic) class — recall of 0.56 means it misses roughly 44% of actual diabetic cases in the test set. This is expected given the class imbalance (~65/35 split) and is worth addressing (see Next Steps).
+
+### Exploratory Data Analysis
+
+**Class Distribution**
+
+![Class Distribution](figures/eda_class_distribution.png)
+
+**Feature Correlation Heatmap**
+
+![Correlation Heatmap](figures/eda_correlation_heatmap.png)
+
+**Feature Distributions**
+
+![Feature Distributions](figures/eda_feature_distributions.png)
+
+### Model Evaluation
+
+**Confusion Matrix**
+
+![Confusion Matrix](figures/eval_confusion_matrix.png)
+
+**ROC Curve**
+
+![ROC Curve](figures/eval_roc_curve.png)
+
+**Precision-Recall Curve**
+
+![Precision-Recall Curve](figures/eval_precision_recall_curve.png)
+
+### Feature Importance
+
+![Feature Importance](figures/feature_importance.png)
+
+`Glucose` is by far the strongest predictor (coefficient ≈ 0.83), followed by `Insulin` and `BMI`. `BloodPressure` contributes almost nothing to the model.
+
+## How to Run
+
+```bash
+cd diabetes-prediction
+python diabetes_prediction.py
+```
+
+This regenerates all figures into `figures/` and saves the model + scaler into `model/`.
+
+## Using the Saved Model
+
+```python
+import joblib
+import pandas as pd
+
+model = joblib.load("model/diabetes_logreg_model.pkl")![alt text](image.png)
+scaler = joblib.load("model/diabetes_scaler.pkl")
+
+feature_names = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness',
+                  'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+
+patient = pd.DataFrame([{
+    'Pregnancies': 2, 'Glucose': 130, 'BloodPressure': 70,
+    'SkinThickness': 25, 'Insulin': 100, 'BMI': 28.5,
+    'DiabetesPedigreeFunction': 0.5, 'Age': 35
+}])[feature_names]
+
+patient_scaled = scaler.transform(patient)
+prediction = model.predict(patient_scaled)[0]
+probability = model.predict_proba(patient_scaled)[0, 1]
+
+print("Diabetic" if prediction == 1 else "Not Diabetic", f"({probability:.2%} risk)")
+```
+
+## Interactive Web App (Streamlit)
+
+A simple, plain-language web UI is included so anyone can enter patient details and get an instant risk estimate — no code required.
+
+```bash
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+This opens a browser tab (usually `http://localhost:8501`) with:
+- Sliders and number inputs for all 8 features, each with a hover tooltip explaining what it means and typical healthy ranges
+- A **Predict Diabetes Risk** button
+- A result shown as **Low / Moderate / High risk** with the estimated probability
+- A disclaimer that this is an educational demo, not a medical diagnosis
+
+It loads `model/diabetes_logreg_model.pkl` and `model/diabetes_scaler.pkl` directly, so make sure you've run `python diabetes_prediction.py` at least once first to generate them.
+
+## Environment Variables
+
+This project currently needs **no secrets or API keys** — everything runs locally on the public Pima Indians dataset. A `.env` file is included as a scaffold for future additions (e.g. if you deploy the Streamlit app and want a config flag, or add a database/API key later). It's git-ignored by default so it's never accidentally committed.
+
+## Project Files at a Glance
+
+| File | Purpose |
+|---|---|
+| `diabetes_prediction.py` | Trains the model, generates all figures, saves `model/` artifacts |
+| `streamlit_app.py` | Interactive web UI for making predictions with the saved model |
+| `requirements.txt` | Python packages needed to run the project |
+| `.gitignore` | Tells Git which files/folders to never track (caches, envs, generated artifacts) |
+| `.env` | Local environment variables/secrets (currently unused, kept for future config) |
+| `run_metrics.json` | Auto-generated metrics from the last training run |
+| `model/` | Saved trained model + scaler (`.pkl` files) |
+| `figures/` | Auto-generated EDA and evaluation plots |
+
+## Next Steps
+
+- Address class imbalance (e.g. `class_weight='balanced'`, SMOTE oversampling) to improve recall on the diabetic class
+- Try additional models (Random Forest, XGBoost) for comparison
+- Deploy the Streamlit app (e.g. Streamlit Community Cloud) so it's usable without local setup
